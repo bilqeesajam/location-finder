@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { authApi } from '@/services/api/authApi';
 
 interface AuthState {
   user: User | null;
@@ -17,6 +18,16 @@ export function useAuth() {
     isAdmin: false,
   });
 
+  // Check admin role via Edge Function
+  const checkAdminRole = useCallback(async () => {
+    const response = await authApi.checkAdmin();
+    if (response.success && response.data) {
+      setAuthState(prev => ({ ...prev, isAdmin: response.data!.isAdmin }));
+    } else {
+      setAuthState(prev => ({ ...prev, isAdmin: false }));
+    }
+  }, []);
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -30,8 +41,9 @@ export function useAuth() {
 
         // Check admin role after auth state change
         if (session?.user) {
+          // Use setTimeout to avoid race conditions
           setTimeout(() => {
-            checkAdminRole(session.user.id);
+            checkAdminRole();
           }, 0);
         } else {
           setAuthState(prev => ({ ...prev, isAdmin: false }));
@@ -49,23 +61,12 @@ export function useAuth() {
       }));
 
       if (session?.user) {
-        checkAdminRole(session.user.id);
+        checkAdminRole();
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
-
-  const checkAdminRole = async (userId: string) => {
-    const { data } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .maybeSingle();
-
-    setAuthState(prev => ({ ...prev, isAdmin: !!data }));
-  };
+  }, [checkAdminRole]);
 
   const signUp = async (email: string, password: string, displayName?: string) => {
     const redirectUrl = `${window.location.origin}/`;
