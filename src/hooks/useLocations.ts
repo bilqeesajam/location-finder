@@ -1,18 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { locationsApi } from '@/services/api/locationsApi';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import type { Location } from '@/services/types';
 
-export interface Location {
-  id: string;
-  name: string;
-  description: string | null;
-  latitude: number;
-  longitude: number;
-  status: 'pending' | 'approved' | 'denied';
-  created_by: string | null;
-  created_at: string;
-}
+export type { Location } from '@/services/types';
 
 export function useLocations() {
   const [locations, setLocations] = useState<Location[]>([]);
@@ -22,18 +14,14 @@ export function useLocations() {
   const fetchLocations = useCallback(async () => {
     setIsLoading(true);
     
-    let query = supabase
-      .from('locations')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const response = await locationsApi.getAll();
 
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching locations:', error);
+    if (!response.success) {
+      console.error('Error fetching locations:', response.error);
       toast.error('Failed to load locations');
+      setLocations([]);
     } else {
-      setLocations(data as Location[]);
+      setLocations(response.data || []);
     }
     
     setIsLoading(false);
@@ -43,7 +31,7 @@ export function useLocations() {
     fetchLocations();
   }, [fetchLocations, user, isAdmin]);
 
-  const addLocation = async (
+  const addLocation = useCallback(async (
     name: string,
     latitude: number,
     longitude: number,
@@ -54,29 +42,24 @@ export function useLocations() {
       return { error: new Error('Not authenticated') };
     }
 
-    const { data, error } = await supabase
-      .from('locations')
-      .insert({
-        name,
-        description,
-        latitude,
-        longitude,
-        created_by: user.id,
-      })
-      .select()
-      .single();
+    const response = await locationsApi.create({
+      name,
+      latitude,
+      longitude,
+      description,
+    });
 
-    if (error) {
-      toast.error('Failed to add location');
-      return { error };
+    if (!response.success) {
+      toast.error(response.error || 'Failed to add location');
+      return { error: new Error(response.error) };
     }
 
-    toast.success('Location submitted for approval');
+    toast.success(response.message || 'Location submitted for approval');
     await fetchLocations();
-    return { data };
-  };
+    return { data: response.data };
+  }, [user, fetchLocations]);
 
-  const updateLocationStatus = async (
+  const updateLocationStatus = useCallback(async (
     id: string,
     status: 'approved' | 'denied'
   ) => {
@@ -85,41 +68,35 @@ export function useLocations() {
       return { error: new Error('Not authorized') };
     }
 
-    const { error } = await supabase
-      .from('locations')
-      .update({ status })
-      .eq('id', id);
+    const response = await locationsApi.updateStatus({ id, status });
 
-    if (error) {
-      toast.error('Failed to update location status');
-      return { error };
+    if (!response.success) {
+      toast.error(response.error || 'Failed to update location status');
+      return { error: new Error(response.error) };
     }
 
-    toast.success(`Location ${status}`);
+    toast.success(response.message || `Location ${status}`);
     await fetchLocations();
     return { error: null };
-  };
+  }, [isAdmin, fetchLocations]);
 
-  const deleteLocation = async (id: string) => {
+  const deleteLocation = useCallback(async (id: string) => {
     if (!isAdmin) {
       toast.error('Only admins can delete locations');
       return { error: new Error('Not authorized') };
     }
 
-    const { error } = await supabase
-      .from('locations')
-      .delete()
-      .eq('id', id);
+    const response = await locationsApi.delete({ id });
 
-    if (error) {
-      toast.error('Failed to delete location');
-      return { error };
+    if (!response.success) {
+      toast.error(response.error || 'Failed to delete location');
+      return { error: new Error(response.error) };
     }
 
     toast.success('Location deleted');
     await fetchLocations();
     return { error: null };
-  };
+  }, [isAdmin, fetchLocations]);
 
   // Filter locations for display
   const approvedLocations = locations.filter(l => l.status === 'approved');
