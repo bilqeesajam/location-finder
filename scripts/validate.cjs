@@ -8,7 +8,7 @@ const allRequiredFiles = [
   '.github/ISSUE_TEMPLATE/feature-ticket.md',
   '.github/ISSUE_TEMPLATE/testing-qa.md',
   '.github/ISSUE_TEMPLATE/bug-report.md',
-  '.github/ISSUE_TEMPLATE/pull-request-template.md',
+  '.github/ISSUE_TEMPLATE/pull_request_template.md',
   
   // Public assets
   'public/favicon.ico',
