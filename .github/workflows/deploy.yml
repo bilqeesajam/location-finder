@@ -1,0 +1,87 @@
+name: CD - Deploy Frontend, Simulate Backend
+on:
+  push:
+    branches: [main]
+
+jobs:
+  simulate-backend:
+    runs-on: ubuntu-latest
+    outputs:
+      backend_type: ${{ steps.check-backend.outputs.backend_type }}
+      backend_url: ${{ steps.simulate.outputs.backend_url }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 'latest'
+      
+      - name: Validate project
+        run: bun scripts/validate.cjs
+        
+      - name: Check backend type
+        id: check-backend
+        run: |
+          if [ -f "backend/package.json" ]; then
+            echo "backend_type=node" >> $GITHUB_OUTPUT
+          elif [ -d "supabase/functions/" ]; then
+            echo "backend_type=supabase" >> $GITHUB_OUTPUT
+          else
+            echo "backend_type=none" >> $GITHUB_OUTPUT
+          fi
+        
+      - name: Simulate backend deployment
+        id: simulate
+        run: |
+          echo "🚀 SIMULATING backend deployment..."
+          
+          if [ "${{ steps.check-backend.outputs.backend_type }}" = "node" ]; then
+            echo "📦 Would deploy Node.js backend to Render"
+            echo "backend_url=https://test-backend.onrender.com" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.check-backend.outputs.backend_type }}" = "supabase" ]; then
+            echo "🗄️ Would deploy Supabase Edge Functions"
+            echo "backend_url=https://test-project.supabase.co/functions/v1" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ No backend detected"
+            echo "backend_url=https://mock-api.example.com" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "✅ Backend simulation complete"
+          
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: simulate-backend
+    env:
+      VITE_API_URL: ${{ needs.simulate-backend.outputs.backend_url }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://test-supabase.supabase.co' }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'test-key' }}
+      VITE_MAPTILER_KEY: ${{ secrets.VITE_MAPTILER_KEY || 'test-key' }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 'latest'
+          
+      - name: Install dependencies
+        run: bun install
+          
+      - name: Build project
+        run: bun run build
+          
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-args: '--prod --confirm'
+          
+      - name: Show deployment info
+        run: |
+          echo "✅ DEPLOYMENT COMPLETE"
+          echo "🌐 Frontend: Live on Vercel"
+          echo "🔧 Backend type: ${{ needs.simulate-backend.outputs.backend_type }}"
+          echo "📡 Backend URL: ${{ needs.simulate-backend.outputs.backend_url }}"
