@@ -1,20 +1,20 @@
-import { useState } from 'react';
-import { 
-  Check, 
-  X, 
-  Trash2, 
-  MapPin, 
-  Clock, 
+import { useState } from "react";
+import {
+  Check,
+  X,
+  Trash2,
+  MapPin,
+  Clock,
   ArrowLeft,
   Filter,
-  Loader2
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useLocations, Location } from '@/hooks/useLocations';
-import { useAuth } from '@/hooks/useAuth';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { Link, Navigate } from 'react-router-dom';
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useLocations, Location } from "@/hooks/useLocations";
+import { useAuth } from "@/hooks/useAuth";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { Link, Navigate } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,18 +25,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 
-type FilterStatus = 'all' | 'pending' | 'approved' | 'denied';
+type FilterStatus = "all" | "pending" | "approved" | "denied";
 
 export function AdminDashboard() {
-  const [filter, setFilter] = useState<FilterStatus>('pending');
+  const [filter, setFilter] = useState<FilterStatus>("pending");
   const [processingId, setProcessingId] = useState<string | null>(null);
-  
-  const { isAdmin, isLoading: authLoading } = useAuth();
-  const { locations, isLoading, updateLocationStatus, deleteLocation } = useLocations();
 
-  if (authLoading) {
+  // pagination
+  const [page, setPage] = useState(1);
+  const pageSize = 9;
+
+  const { isAdmin, isLoading: authLoading } = useAuth();
+  const { locations, isLoading, updateLocationStatus, deleteLocation } =
+    useLocations();
+
+  const changeFilter = (status: FilterStatus) => {
+    setFilter(status);
+    setPage(1);
+  };
+
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -48,20 +58,30 @@ export function AdminDashboard() {
     return <Navigate to="/" replace />;
   }
 
-  const filteredLocations = locations.filter(loc => {
-    if (filter === 'all') return true;
+  const filteredLocations = locations.filter((loc) => {
+    if (filter === "all") return true;
     return loc.status === filter;
   });
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredLocations.length / pageSize),
+  );
+  const startIndex = (page - 1) * pageSize;
+  const pagedLocations = filteredLocations.slice(
+    startIndex,
+    startIndex + pageSize,
+  );
+
   const handleApprove = async (id: string) => {
     setProcessingId(id);
-    await updateLocationStatus(id, 'approved');
+    await updateLocationStatus(id, "approved");
     setProcessingId(null);
   };
 
   const handleDeny = async (id: string) => {
     setProcessingId(id);
-    await updateLocationStatus(id, 'denied');
+    await updateLocationStatus(id, "denied");
     setProcessingId(null);
   };
 
@@ -71,7 +91,7 @@ export function AdminDashboard() {
     setProcessingId(null);
   };
 
-  const pendingCount = locations.filter(l => l.status === 'pending').length;
+  const pendingCount = locations.filter((l) => l.status === "pending").length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -105,20 +125,22 @@ export function AdminDashboard() {
         <div className="flex items-center gap-2 mb-6">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <div className="flex gap-2">
-            {(['all', 'pending', 'approved', 'denied'] as FilterStatus[]).map((status) => (
-              <Button
-                key={status}
-                variant={filter === status ? 'default' : 'secondary'}
-                size="sm"
-                onClick={() => setFilter(status)}
-                className={cn(
-                  'capitalize',
-                  filter === status && 'bg-gradient-primary'
-                )}
-              >
-                {status}
-              </Button>
-            ))}
+            {(["all", "pending", "approved", "denied"] as FilterStatus[]).map(
+              (status) => (
+                <Button
+                  key={status}
+                  variant={filter === status ? "default" : "secondary"}
+                  size="sm"
+                  onClick={() => changeFilter(status)}
+                  className={cn(
+                    "capitalize",
+                    filter === status && "bg-gradient-primary",
+                  )}
+                >
+                  {status}
+                </Button>
+              ),
+            )}
           </div>
         </div>
 
@@ -130,20 +152,52 @@ export function AdminDashboard() {
         ) : filteredLocations.length === 0 ? (
           <div className="text-center py-12">
             <MapPin className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-            <p className="text-muted-foreground">No {filter !== 'all' ? filter : ''} locations found</p>
+            <p className="text-muted-foreground">
+              No {filter !== "all" ? filter : ""} locations found
+            </p>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredLocations.map((location) => (
-              <LocationCard
-                key={location.id}
-                location={location}
-                isProcessing={processingId === location.id}
-                onApprove={() => handleApprove(location.id)}
-                onDeny={() => handleDeny(location.id)}
-                onDelete={() => handleDelete(location.id)}
-              />
-            ))}
+          <div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {pagedLocations.map((location) => (
+                <LocationCard
+                  key={location.id}
+                  location={location}
+                  isProcessing={processingId === location.id}
+                  onApprove={() => handleApprove(location.id)}
+                  onDeny={() => handleDeny(location.id)}
+                  onDelete={() => handleDelete(location.id)}
+                />
+              ))}
+            </div>
+
+            {filteredLocations.length > pageSize && (
+              <div className="flex items-center justify-center gap-3 mt-8">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  Prev
+                </Button>
+
+                <span className="text-sm text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={page === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -177,10 +231,10 @@ function LocationCard({
             <h3 className="font-semibold">{location.name}</h3>
             <span
               className={cn(
-                'text-xs px-2 py-0.5 rounded-full capitalize',
-                location.status === 'approved' && 'status-approved',
-                location.status === 'pending' && 'status-pending',
-                location.status === 'denied' && 'status-denied'
+                "text-xs px-2 py-0.5 rounded-full capitalize",
+                location.status === "approved" && "status-approved",
+                location.status === "pending" && "status-pending",
+                location.status === "denied" && "status-denied",
               )}
             >
               {location.status}
@@ -201,12 +255,12 @@ function LocationCard({
         </span>
         <span className="flex items-center gap-1">
           <Clock className="h-3 w-3" />
-          {format(new Date(location.created_at), 'MMM d, yyyy')}
+          {format(new Date(location.created_at), "MMM d, yyyy")}
         </span>
       </div>
 
       <div className="flex gap-2">
-        {location.status === 'pending' && (
+        {location.status === "pending" && (
           <>
             <Button
               size="sm"
@@ -251,7 +305,8 @@ function LocationCard({
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Location</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete "{location.name}"? This action cannot be undone.
+                Are you sure you want to delete "{location.name}"? This action
+                cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
