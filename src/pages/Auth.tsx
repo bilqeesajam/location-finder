@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import LegalConfirmModal from '@/components/LegalConfirmModal';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -26,6 +27,8 @@ export default function Auth() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [authError, setAuthError] = useState('');
+  const [acceptedTos, setAcceptedTos] = useState(false);
+  const [showLegalModal, setShowLegalModal] = useState<"terms" | "privacy" | null>(null);
 
   const { user, signIn, signUp, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -43,8 +46,8 @@ export default function Auth() {
     setAuthError('');
 
     const schema = mode === 'login' ? loginSchema : signupSchema;
-    const data = mode === 'login' 
-      ? { email, password } 
+    const data = mode === 'login'
+      ? { email, password }
       : { email, password, displayName };
 
     const result = schema.safeParse(data);
@@ -55,6 +58,11 @@ export default function Auth() {
         fieldErrors[err.path[0] as string] = err.message;
       });
       setErrors(fieldErrors);
+      return;
+    }
+
+    if (mode === 'signup' && !acceptedTos) {
+      setAuthError('You must accept the Terms & Conditions to continue');
       return;
     }
 
@@ -117,8 +125,8 @@ export default function Auth() {
               {mode === 'login' ? 'Welcome back' : 'Create account'}
             </h1>
             <p className="text-muted-foreground">
-              {mode === 'login' 
-                ? 'Sign in to add and share locations' 
+              {mode === 'login'
+                ? 'Sign in to add and share locations'
                 : 'Join MapExplorer to start exploring'}
             </p>
           </div>
@@ -186,10 +194,39 @@ export default function Auth() {
               </div>
             )}
 
+            {mode === 'signup' && (
+              <div className="flex items-start gap-3 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={acceptedTos}
+                  onChange={(e) => setAcceptedTos(e.target.checked)}
+                  className="mt-1 accent-primary"
+                />
+                <span>
+                  I agree to the{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowLegalModal("terms")}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Terms & Conditions
+                  </button>{" "}
+                  and{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowLegalModal("privacy")}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Privacy Policy
+                  </button>
+                </span>
+              </div>
+            )}
+
             <Button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-gradient-primary hover:opacity-90 h-11"
+              disabled={isSubmitting || (mode === 'signup' && !acceptedTos)}
+              className="w-full bg-gradient-primary hover:opacity-90 h-11 disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
@@ -211,6 +248,7 @@ export default function Auth() {
                   setMode(mode === 'login' ? 'signup' : 'login');
                   setErrors({});
                   setAuthError('');
+                  setAcceptedTos(false); // reset T&C checkbox
                 }}
                 className="ml-1 text-primary hover:underline font-medium"
               >
@@ -220,6 +258,12 @@ export default function Auth() {
           </div>
         </div>
       </div>
+
+      {/* Legal Modal */}
+      <LegalConfirmModal
+        type={showLegalModal} // "terms" | "privacy" | null
+        onClose={() => setShowLegalModal(null)}
+      />
     </div>
   );
 }
