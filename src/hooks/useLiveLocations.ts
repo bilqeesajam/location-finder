@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { liveLocationsApi } from '@/services/api/liveLocationsApi';
+import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
-import type { LiveLocation } from '@/services/types';
 
-export type { LiveLocation } from '@/services/types';
+export interface LiveLocation {
+  id: string;
+  user_id: string;
+  latitude: number;
+  longitude: number;
+  updated_at: string;
+}
 
 export function useLiveLocations() {
   const [liveLocations, setLiveLocations] = useState<LiveLocation[]>([]);
@@ -14,18 +18,20 @@ export function useLiveLocations() {
   const watchIdRef = useRef<number | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Fetch initial live locations via API
+  // Fetch live locations directly from database
   const fetchLiveLocations = useCallback(async () => {
-    const response = await liveLocationsApi.getAll();
+    const { data, error } = await supabase
+      .from('live_locations')
+      .select('*');
 
-    if (!response.success) {
-      console.error('Error fetching live locations:', response.error);
+    if (error) {
+      console.error('Error fetching live locations:', error);
     } else {
-      setLiveLocations(response.data || []);
+      setLiveLocations(data as LiveLocation[] || []);
     }
   }, []);
 
-  // Subscribe to realtime updates (this still uses Supabase client for WebSocket)
+  // Subscribe to realtime updates
   useEffect(() => {
     fetchLiveLocations();
 
@@ -51,14 +57,23 @@ export function useLiveLocations() {
     };
   }, [fetchLiveLocations]);
 
-  // Update user's live location via API
+  // Update user's live location
   const updateMyLocation = useCallback(async (latitude: number, longitude: number) => {
     if (!user) return;
 
-    const response = await liveLocationsApi.update({ latitude, longitude });
+    const { error } = await supabase
+      .from('live_locations')
+      .upsert({
+        user_id: user.id,
+        latitude,
+        longitude,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id',
+      });
 
-    if (!response.success) {
-      console.error('Error updating location:', response.error);
+    if (error) {
+      console.error('Error updating location:', error);
     }
   }, [user]);
 
@@ -102,7 +117,7 @@ export function useLiveLocations() {
     );
   }, [user, updateMyLocation]);
 
-  // Stop sharing location via API
+  // Stop sharing location
   const stopSharing = useCallback(async () => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -110,9 +125,13 @@ export function useLiveLocations() {
     }
 
     if (user) {
-      const response = await liveLocationsApi.stopSharing();
-      if (!response.success) {
-        console.error('Error stopping location sharing:', response.error);
+      const { error } = await supabase
+        .from('live_locations')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error stopping location sharing:', error);
       }
     }
 

@@ -26,10 +26,8 @@ jobs:
         run: |
           if [ -f "backend/package.json" ]; then
             echo "backend_type=node" >> $GITHUB_OUTPUT
-          elif [ -d "supabase/functions/" ]; then
-            echo "backend_type=supabase" >> $GITHUB_OUTPUT
           else
-            echo "backend_type=none" >> $GITHUB_OUTPUT
+            echo "backend_type=supabase" >> $GITHUB_OUTPUT
           fi
         
       - name: Simulate backend deployment
@@ -38,14 +36,11 @@ jobs:
           echo "🚀 SIMULATING backend deployment..."
           
           if [ "${{ steps.check-backend.outputs.backend_type }}" = "node" ]; then
-            echo "📦 Would deploy Node.js backend to Render"
-            echo "backend_url=https://test-backend.onrender.com" >> $GITHUB_OUTPUT
-          elif [ "${{ steps.check-backend.outputs.backend_type }}" = "supabase" ]; then
-            echo "🗄️ Would deploy Supabase Edge Functions"
-            echo "backend_url=https://test-project.supabase.co/functions/v1" >> $GITHUB_OUTPUT
+            echo "📦 Would deploy Node.js backend to Render/Railway"
+            echo "backend_url=https://simulated-node-api.onrender.com" >> $GITHUB_OUTPUT
           else
-            echo "⚠️ No backend detected"
-            echo "backend_url=https://mock-api.example.com" >> $GITHUB_OUTPUT
+            echo "🗄️ Using existing Supabase backend"
+            echo "backend_url=${{ secrets.VITE_SUPABASE_URL }}/functions/v1" >> $GITHUB_OUTPUT
           fi
           
           echo "✅ Backend simulation complete"
@@ -55,9 +50,9 @@ jobs:
     needs: simulate-backend
     env:
       VITE_API_URL: ${{ needs.simulate-backend.outputs.backend_url }}
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://test-supabase.supabase.co' }}
-      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'test-key' }}
-      VITE_MAPTILER_KEY: ${{ secrets.VITE_MAPTILER_KEY || 'test-key' }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      # No Maptiler key needed - it's hardcoded in useMap.ts
     
     steps:
       - uses: actions/checkout@v4
@@ -71,10 +66,14 @@ jobs:
         run: bun install
           
       - name: Build project
-        run: bun run build
+        run: |
+          echo "🔨 Building with environment variables:"
+          echo "VITE_API_URL=$VITE_API_URL"
+          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL"
+          bun run build
           
       - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v20
+        uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-args: '--prod --confirm'
@@ -83,5 +82,6 @@ jobs:
         run: |
           echo "✅ DEPLOYMENT COMPLETE"
           echo "🌐 Frontend: Live on Vercel"
-          echo "🔧 Backend type: ${{ needs.simulate-backend.outputs.backend_type }}"
-          echo "📡 Backend URL: ${{ needs.simulate-backend.outputs.backend_url }}"
+          echo "🔧 Backend: ${{ needs.simulate-backend.outputs.backend_type }}"
+          echo "📡 API URL: $VITE_API_URL"
+          echo "🗄️ Supabase: $VITE_SUPABASE_URL"

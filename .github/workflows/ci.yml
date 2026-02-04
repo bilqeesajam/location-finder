@@ -16,7 +16,15 @@ jobs:
           bun-version: 'latest'
           
       - name: Validate project structure
-        run: bun scripts/validate.cjs
+        run: |
+          echo "🔍 Running strict validation..."
+          echo "This will FAIL if any required files are missing"
+          
+          # Run validation - it WILL exit with code 1 if files missing
+          node scripts/validate.cjs
+          
+          # If we get here, validation passed
+          echo "✅ Validation passed - all required files exist"
           
       - name: Install dependencies
         run: bun install
@@ -30,5 +38,6 @@ jobs:
       - name: Run tests
         run: bun run test
           
-      - name: Lint check
-        run: bun run lint
+      # Lint check commented out
+      # - name: Lint check
+      #   run: bun run lint

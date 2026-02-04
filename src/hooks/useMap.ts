@@ -10,6 +10,9 @@ interface UseMapOptions {
   is3D?: boolean;
 }
 
+// MapTiler API Key
+const MAPTILER_API_KEY = '4wu3rv7xXgID64RMlznr';
+
 export function useMap(options: UseMapOptions) {
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -19,12 +22,7 @@ export function useMap(options: UseMapOptions) {
   const initializeMap = useCallback(() => {
     if (mapRef.current) return;
 
-    const apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
-    
-    // Use edge function to get the API key if not available
-    const style = apiKey 
-      ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${apiKey}`
-      : 'https://demotiles.maplibre.org/style.json';
+    const style = `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${MAPTILER_API_KEY}`;
 
     const newMap = new maplibregl.Map({
       container: options.container,
@@ -68,7 +66,7 @@ export function useMap(options: UseMapOptions) {
       setIsLoaded(true);
 
       // Add 3D buildings layer if MapTiler style
-      if (apiKey && options.is3D) {
+      if (options.is3D) {
         add3DBuildings(newMap);
       }
     });

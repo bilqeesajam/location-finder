@@ -1,4 +1,4 @@
-project_id = "yfltlcwogdnvilhvsnjw"
+project_id = "artpowrkwqldwhbeqfiz"
 
 [functions.get-maptiler-key]
 verify_jwt = false
