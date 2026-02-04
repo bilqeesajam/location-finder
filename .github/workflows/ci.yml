@@ -1,0 +1,43 @@
+name: CI Validation
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 'latest'
+          
+      - name: Validate project structure
+        run: |
+          echo "🔍 Running strict validation..."
+          echo "This will FAIL if any required files are missing"
+          
+          # Run validation - it WILL exit with code 1 if files missing
+          node scripts/validate.cjs
+          
+          # If we get here, validation passed
+          echo "✅ Validation passed - all required files exist"
+          
+      - name: Install dependencies
+        run: bun install
+          
+      - name: Type check
+        run: bunx tsc --noEmit
+          
+      - name: Build project
+        run: bun run build
+          
+      - name: Run tests
+        run: bun run test
+          
+      # Lint check commented out
+      # - name: Lint check
+      #   run: bun run lint
